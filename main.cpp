@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	map<std::string, struct Trades>::iterator it = pairs.begin();
+	map<string, struct Trades>::iterator it = pairs.begin();
 	while(it != pairs.end())
 	{
 		string dp = it->first;
