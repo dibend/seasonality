@@ -9,9 +9,7 @@ struct Date {
 
 struct Trades {
 	double average_return;
-	int num_trades;
-	list<double> trades;
-	list<int> years;
+	list<double> returns;
 };
 
 int main(int argc, char *argv[]) {
@@ -30,8 +28,7 @@ int main(int argc, char *argv[]) {
 		while(dList.Days[j].year == year && j > 0) {
 			string dp = to_string(dList.Days[i].month) + "/" + to_string(dList.Days[i].day) + "," + to_string(dList.Days[j].month) + "/" + to_string(dList.Days[j].day);
 			change = (dList.Days[j].price - dList.Days[i].price) / dList.Days[i].price;
-			pairs[dp].trades.push_back(change);
-			pairs[dp].years.push_back(dList.Days[j].year);
+			pairs[dp].returns.push_back(change);
 			j--;			
 		}
 	}
@@ -42,10 +39,10 @@ int main(int argc, char *argv[]) {
 		string dp = it->first;
 		double av = 0;
 		list<double>::const_iterator iterator;
-		for (iterator = pairs[dp].trades.begin(); iterator != pairs[dp].trades.end(); ++iterator) {
+		for (iterator = pairs[dp].returns.begin(); iterator != pairs[dp].returns.end(); ++iterator) {
 			av += *iterator;
 		}
-		av /= pairs[dp].trades.size();
+		av /= pairs[dp].returns.size();
 		pairs[dp].average_return = av;
 
 		if(pairs[dp].average_return > pairs[best].average_return) {
