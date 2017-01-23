@@ -1,5 +1,5 @@
-#ifndef SSN_H_
-#define SSN_H_
+#ifndef SEASON_H_
+#define SEASON_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,4 +36,4 @@ struct Day_List {
 
 struct Day_List yh_csv_file_to_Day_List(char *filename);
 
-#endif // SSN_H_
+#endif // SEASON_H_
