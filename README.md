@@ -10,7 +10,7 @@ get a file for testing with `./get_quotes.sh IBM` or whichever ticker you choose
 run with `./season IBM.csv`
 
 /*--------------------------------------------------------------------*/
-GITHUB COLPILOT >
+GITHUB C0PIL0T >
 
 Yes — this program is a very simple stock-seasonality finder. I looked at the repo at https://github.com/dibend/seasonality.
 
