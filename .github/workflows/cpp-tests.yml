@@ -8,6 +8,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build with warnings
-        run: bash comp.sh
+        run: bash compile.sh --cpp-only
       - name: Run regression tests
         run: bash tests/test_core.sh
