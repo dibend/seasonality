@@ -1,8 +1,44 @@
-season
+# C++ binaries and build products
+/season
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.exe
+/build/
+/cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+
+# Python virtual environments, caches and packages
 .venv/
+venv/
 __pycache__/
-*.pyc
-data/
-reports/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+*.egg-info/
+dist/
+
+# Downloaded quotes and generated visualizations
+/data/
+/reports/
 *.csv
-!samples/*.csv
+!/samples/*.csv
+*.log
+results.txt
+
+# Secrets, editors, OS files
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*~
+*.swp

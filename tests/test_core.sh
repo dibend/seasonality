@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-bash comp.sh
+bash compile.sh --cpp-only
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 {

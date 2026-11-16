@@ -19,9 +19,15 @@ bash start.sh IBM
 bash visualize.sh IBM
 ```
 
+For a C++-only rebuild without reinstalling Python dependencies:
+
+```bash
+bash compile.sh --cpp-only
+```
+
 `compile.sh` builds the C++ binary (`season`), creates an isolated `.venv`,
-and installs Python dependencies. `comp.sh` only builds the C++ executable;
-use `bash comp.sh` after C++-only changes.
+and installs Python dependencies. Use `bash compile.sh --cpp-only` after
+C++-only changes to skip Python setup.
 
 `start.sh` downloads and caches adjusted daily closes in `data/`, then runs
 the compiled analyzer. `visualize.sh` additionally builds an interactive
@@ -58,10 +64,9 @@ GitHub Actions runs C++ and offline Python tests on pushes and pull requests.
 | File | Purpose |
 | --- | --- |
 | `main.cpp`, `season.cpp`, `season.h` | C++ date-pair scanner and strict CSV reader |
-| `comp.sh` | Compile C++ only |
-| `compile.sh` | Build C++ and prepare Python environment |
+| `compile.sh` | Build C++ and prepare Python environment (`--cpp-only` skips Python) |
 | `start.sh` | Fetch/cache data and run C++ analysis |
-| `get_quotes.py`, `get_quotes.sh` | Download and normalize yfinance data |
+| `get_quotes.py` | Download and normalize yfinance data |
 | `visualize.py`, `visualize.sh` | Parse C++ output and generate Plotly HTML |
 | `requirements*.txt` | Python dependencies |
 | `samples/DEMO.csv` | Offline demonstration fixture |
