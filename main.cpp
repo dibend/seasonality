@@ -1,68 +1,164 @@
 #include "season.h"
 
-using namespace std;
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
+#include <map>
+#include <string>
+#include <utility>
 
-struct Date {
-	uint32_t day;
-	uint32_t month;
+namespace
+{
+typedef std::pair<unsigned, unsigned> Month_Day;
+typedef std::pair<Month_Day, Month_Day> Date_Pair;
+
+struct Trade_Stats
+{
+    double sum = 0.0;
+    unsigned count = 0U;
+    unsigned wins = 0U;
 };
 
-struct Trades {
-	double average_return;
-	list<double> returns;
-};
+bool parse_min_years(const char *text, unsigned *result)
+{
+    if (text == nullptr || text[0] == '\0' || text[0] == '-')
+    {
+        return false;
+    }
+    char *end = nullptr;
+    errno = 0;
+    const unsigned long value = std::strtoul(text, &end, 10);
+    if (errno == ERANGE || *end != '\0' || value == 0UL ||
+        value > std::numeric_limits<unsigned>::max())
+    {
+        return false;
+    }
+    *result = static_cast<unsigned>(value);
+    return true;
+}
 
-int main(int argc, char *argv[]) {
-	struct Day_List dList;
-	dList = yh_csv_file_to_Day_List(argv[1]);
+void accumulate_pairs(const Day_List &list,
+                      std::map<Date_Pair, Trade_Stats> *pairs)
+{
+    const std::vector<Day> &days = list.days;
+    std::size_t first = 0U;
+    while (first < days.size())
+    {
+        std::size_t end = first + 1U;
+        while (end < days.size() && days[end].year == days[first].year)
+        {
+            ++end;
+        }
+        for (std::size_t buy = first; buy < end; ++buy)
+        {
+            for (std::size_t sell = buy + 1U; sell < end; ++sell)
+            {
+                const Date_Pair key = {
+                    {days[buy].month, days[buy].day},
+                    {days[sell].month, days[sell].day}
+                };
+                const double change = days[sell].price / days[buy].price - 1.0;
+                Trade_Stats &stats = (*pairs)[key];
+                stats.sum += change;
+                ++stats.count;
+                if (change > 0.0)
+                {
+                    ++stats.wins;
+                }
+            }
+        }
+        first = end;
+    }
+}
 
-	string best, worst;
-	map<string, struct Trades> pairs;
-	int num_pairs = 0;
-	for(int i = dList.size-1; i > 0; i--) {
-		int year = dList.Days[i].year;
-		int j = i-1;
-		double change;
+std::string ticker_from_path(const std::string &path)
+{
+    const std::size_t slash = path.find_last_of("/\\");
+    std::string ticker = path.substr(
+        slash == std::string::npos ? 0U : slash + 1U);
+    if (ticker.size() > 4U &&
+        ticker.substr(ticker.size() - 4U) == ".csv")
+    {
+        ticker.resize(ticker.size() - 4U);
+    }
+    return ticker;
+}
 
+void print_result(const char *signal, const std::string &ticker,
+                  const Date_Pair &pair, const Trade_Stats &stats)
+{
+    const double average = 100.0 * stats.sum / stats.count;
+    const double win_rate = 100.0 * stats.wins / stats.count;
+    std::printf("%s,%s,%u/%u,%u/%u,%.4f,%u,%.4f\n",
+                signal, ticker.c_str(),
+                pair.first.first, pair.first.second,
+                pair.second.first, pair.second.second,
+                average, stats.count, win_rate);
+}
+} /* namespace */
 
-		while(dList.Days[j].year == year && j > 0) {
-			string dp = to_string(dList.Days[i].month) + "/" + to_string(dList.Days[i].day) + "," + to_string(dList.Days[j].month) + "/" + to_string(dList.Days[j].day);
-			change = (dList.Days[j].price - dList.Days[i].price) / dList.Days[i].price;
-			pairs[dp].returns.push_back(change);
-			j--;			
-		}
-	}
+int main(int argc, char *argv[])
+{
+    if (argc < 2 || argc > 3)
+    {
+        std::fprintf(stderr, "Usage: %s TICKER.csv [min_years=3]\n", argv[0]);
+        return 2;
+    }
 
-	map<string, struct Trades>::iterator it = pairs.begin();
-	while(it != pairs.end())
-	{
-		string dp = it->first;
-		double av = 0;
-		list<double>::const_iterator iterator;
-		for (iterator = pairs[dp].returns.begin(); iterator != pairs[dp].returns.end(); ++iterator) {
-			av += *iterator;
-		}
-		av /= pairs[dp].returns.size();
-		pairs[dp].average_return = av;
+    unsigned min_years = 3U;
+    if (argc == 3 && !parse_min_years(argv[2], &min_years))
+    {
+        std::fprintf(stderr, "min_years must be a positive integer\n");
+        return 2;
+    }
 
-		if(pairs[dp].average_return > pairs[best].average_return) {
-			best = dp;
-		} else if(pairs[dp].average_return < pairs[worst].average_return) {
-			worst = dp;
-		}
-		it++;
-	}
+    Day_List list;
+    std::string error;
+    if (!load_price_csv(argv[1], &list, &error))
+    {
+        std::fprintf(stderr, "Error: %s\n", error.c_str());
+        return 1;
+    }
 
-	int ticker_start;
-	for(ticker_start = strlen(argv[1]); ticker_start > 0; ticker_start--) {
-		if(argv[1][ticker_start] == '/') {
-			ticker_start++;
-			break;
-		}
-	}
+    std::map<Date_Pair, Trade_Stats> pairs;
+    accumulate_pairs(list, &pairs);
 
-	char *ticker = &argv[1][ticker_start];
-	ticker[strlen(ticker)-4] = 0;
-	printf("long,%s,%s,%f\n", ticker, best.c_str(), pairs[best].average_return);
-	printf("short,%s,%s,%f\n", ticker, worst.c_str(), pairs[worst].average_return * -1);
+    bool found = false;
+    Date_Pair best = {};
+    Date_Pair worst = {};
+    double best_average = -std::numeric_limits<double>::infinity();
+    double worst_average = std::numeric_limits<double>::infinity();
+
+    for (const auto &entry : pairs)
+    {
+        const Trade_Stats &stats = entry.second;
+        if (stats.count < min_years)
+        {
+            continue;
+        }
+        const double average = stats.sum / stats.count;
+        if (!found || average > best_average)
+        {
+            best = entry.first;
+            best_average = average;
+        }
+        if (!found || average < worst_average)
+        {
+            worst = entry.first;
+            worst_average = average;
+        }
+        found = true;
+    }
+    if (!found)
+    {
+        std::fprintf(stderr, "No date pairs with %u observations\n", min_years);
+        return 1;
+    }
+
+    const std::string ticker = ticker_from_path(argv[1]);
+    std::puts("signal,ticker,buy_date,sell_date,avg_return_pct,years,win_rate_pct");
+    print_result("long", ticker, best, pairs.at(best));
+    print_result("worst_period", ticker, worst, pairs.at(worst));
+    return 0;
 }

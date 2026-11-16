@@ -1,39 +1,26 @@
 #ifndef SEASON_H_
 #define SEASON_H_
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <string.h>
-#include <stdint.h>
-
-#include <map>
-#include <list>
+#include <cstdint>
 #include <string>
+#include <vector>
 
-#ifdef __APPLE__
-    #include <sys/uio.h>
-#else
-    #include <sys/io.h>
-#endif
-
-struct Day {
-    uint32_t day;
-    uint32_t month;
-    uint32_t year;
-    uint32_t volume;
+struct Day
+{
+    unsigned year;
+    unsigned month;
+    unsigned day;
     double price;
+    std::uint64_t volume;
 };
 
-struct Day_List {
-    uint32_t size;
-    struct Day *Days;
+struct Day_List
+{
+    std::vector<Day> days;
 };
 
-struct Day_List yh_csv_file_to_Day_List(char *filename);
+/* Returns false with an error message when input is invalid. */
+bool load_price_csv(const std::string &filename, Day_List *result,
+                    std::string *error);
 
-#endif // SEASON_H_
+#endif /* SEASON_H_ */

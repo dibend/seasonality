@@ -1,76 +1,200 @@
 #include "season.h"
 
-struct Day_List yh_csv_file_to_Day_List(char *filename)
+#include <algorithm>
+#include <cerrno>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <string>
+
+namespace
 {
-	char *f, *element;
-	int num_days, day_index, pos, column, row, timestamp, mkt_open;
-	struct Day_List My_Day_List;    
-	struct stat s;
-	size_t size;
-	int fd = open (filename, O_RDONLY);
-	int start = 42; //start of file (excluding titles)
-
-	/* Get the size of the file. */
-	fstat (fd, & s);
-	size = s.st_size;
-
-	f = (char *) mmap (0, size, PROT_READ, MAP_PRIVATE, fd, 0);
-	close(fd);
-
-	num_days = 0;
-	for(int i = start; i < size; i++) {
-		if(f[i] == '\n') {
-			num_days ++; 
-		}
-	}
-	My_Day_List.Days = (struct Day *) malloc(num_days * sizeof(struct Day)); 
-
-	pos = start;
-	column = 0;
-	row = 0;
-	mkt_open = 0;
-	day_index = 0;
-	for(int i = start; i < size; i++) {
-		if(f[i] == ',' || f[i] == '\n') {
-			if(column == 0) {
-				int el_size = i-pos+1;
-				char year[5]; //yyyy
-				char month[3]; //mm
-				char day[3]; //dd
-				element = (char *) malloc(el_size);
-				memcpy(element, &f[pos], el_size);
-				element[el_size-1] = 0; //null terminate
-				//hardcoded date locations
-				memcpy(year, &element[0], 4);
-				year[4] = 0; //null terminate
-				memcpy(month, &element[5], 2);
-				month[2] = 0; //null terminate
-				memcpy(day, &element[8], 2);
-				month[2] = 0; //null terminate
-				My_Day_List.Days[day_index].year = atoi(year);
-				My_Day_List.Days[day_index].month = atoi(month);
-				My_Day_List.Days[day_index].day = atoi(day);
-				free(element);
-			} else if(column == 6) {
-				int el_size = i-pos+1;
-				element = (char *) malloc(el_size);
-				memcpy(element, &f[pos], el_size);
-				element[el_size-1] = 0; //null terminate
-				My_Day_List.Days[day_index].price = atof(element);
-				free(element);
-			}
-			pos = i+1;
-			column ++;
-		} 
-		if(f[i] == '\n') {
-			day_index ++;
-			pos = i+1;
-			row ++;
-			column = 0;
-		}
-	}
-	munmap(f, size);
-	My_Day_List.size = day_index;
-	return My_Day_List;
+bool is_valid_date(unsigned year, unsigned month, unsigned day)
+{
+    static const unsigned days_in_month[12] = {
+        31U, 28U, 31U, 30U, 31U, 30U,
+        31U, 31U, 30U, 31U, 30U, 31U
+    };
+    if (year < 1900U || month < 1U || month > 12U || day < 1U)
+    {
+        return false;
+    }
+    unsigned limit = days_in_month[month - 1U];
+    if (month == 2U && (year % 4U == 0U) &&
+        ((year % 100U != 0U) || (year % 400U == 0U)))
+    {
+        limit = 29U;
+    }
+    return day <= limit;
 }
 
+bool parse_price(const std::string &text, double *value)
+{
+    if (text.empty())
+    {
+        return false;
+    }
+    char *end = nullptr;
+    errno = 0;
+    const double parsed = std::strtod(text.c_str(), &end);
+    if (errno == ERANGE || end == text.c_str() || *end != '\0' ||
+        !std::isfinite(parsed) || parsed <= 0.0)
+    {
+        return false;
+    }
+    *value = parsed;
+    return true;
+}
+
+bool parse_volume(const std::string &text, std::uint64_t *value)
+{
+    if (text.empty() || text[0] == '-')
+    {
+        return false;
+    }
+    char *end = nullptr;
+    errno = 0;
+    const unsigned long long parsed = std::strtoull(text.c_str(), &end, 10);
+    if (errno == ERANGE || end == text.c_str() || *end != '\0')
+    {
+        return false;
+    }
+    *value = static_cast<std::uint64_t>(parsed);
+    return true;
+}
+
+bool parse_row(const std::string &line, Day *result)
+{
+    const std::size_t first = line.find(',');
+    if (first != 10U)
+    {
+        return false;
+    }
+    const std::size_t second = line.find(',', first + 1U);
+    if (second == std::string::npos ||
+        line.find(',', second + 1U) != std::string::npos)
+    {
+        return false;
+    }
+    const std::string date = line.substr(0U, first);
+    if (date[4] != '-' || date[7] != '-')
+    {
+        return false;
+    }
+
+    unsigned year = 0U;
+    unsigned month = 0U;
+    unsigned day = 0U;
+    int consumed = 0;
+    if (std::sscanf(date.c_str(), "%4u-%2u-%2u%n",
+                    &year, &month, &day, &consumed) != 3 ||
+        consumed != 10 || !is_valid_date(year, month, day))
+    {
+        return false;
+    }
+    double price = 0.0;
+    std::uint64_t volume = 0U;
+    if (!parse_price(line.substr(first + 1U, second - first - 1U), &price) ||
+        !parse_volume(line.substr(second + 1U), &volume))
+    {
+        return false;
+    }
+    result->year = year;
+    result->month = month;
+    result->day = day;
+    result->price = price;
+    result->volume = volume;
+    return true;
+}
+
+bool date_less(const Day &left, const Day &right)
+{
+    if (left.year != right.year)
+    {
+        return left.year < right.year;
+    }
+    if (left.month != right.month)
+    {
+        return left.month < right.month;
+    }
+    return left.day < right.day;
+}
+} /* namespace */
+
+bool load_price_csv(const std::string &filename, Day_List *result,
+                    std::string *error)
+{
+    if (result == nullptr || error == nullptr)
+    {
+        return false;
+    }
+    result->days.clear();
+    error->clear();
+
+    std::ifstream input(filename);
+    if (!input)
+    {
+        *error = "cannot open file: " + filename;
+        return false;
+    }
+    std::string line;
+    if (!std::getline(input, line))
+    {
+        *error = "empty CSV file";
+        return false;
+    }
+    if (!line.empty() && line.back() == '\r')
+    {
+        line.pop_back();
+    }
+    if (line != "Date,Close,Volume")
+    {
+        *error = "expected CSV header Date,Close,Volume";
+        return false;
+    }
+
+    unsigned line_number = 1U;
+    while (std::getline(input, line))
+    {
+        ++line_number;
+        if (!line.empty() && line.back() == '\r')
+        {
+            line.pop_back();
+        }
+        if (line.empty())
+        {
+            continue;
+        }
+        Day record = {};
+        if (!parse_row(line, &record))
+        {
+            *error = "invalid CSV line " + std::to_string(line_number);
+            return false;
+        }
+        result->days.push_back(record);
+    }
+    if (input.bad())
+    {
+        *error = "I/O error reading CSV";
+        return false;
+    }
+    if (result->days.empty())
+    {
+        *error = "CSV has no data rows";
+        return false;
+    }
+
+    std::sort(result->days.begin(), result->days.end(), date_less);
+    for (std::size_t i = 1U; i < result->days.size(); ++i)
+    {
+        const Day &a = result->days[i - 1U];
+        const Day &b = result->days[i];
+        if (a.year == b.year && a.month == b.month && a.day == b.day)
+        {
+            *error = "duplicate trading date";
+            return false;
+        }
+    }
+    return true;
+}
