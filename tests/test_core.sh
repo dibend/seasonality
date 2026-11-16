@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-./comp.sh
+bash comp.sh
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 {
