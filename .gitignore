@@ -26,9 +26,9 @@ dist/
 
 # Downloaded quotes and generated visualizations
 /data/
-/reports/
-*.csv
-!/samples/*.csv
+# /reports/
+# *.csv
+/samples/*.csv
 *.log
 results.txt
 
