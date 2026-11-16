@@ -1,3 +1,8 @@
-#!/bin/bash
-ticker=$1
-curl -s "http://ichart.finance.yahoo.com/table.csv?s=${ticker}&d=0&e=28&f=2020&g=d&a=3&b=12&c=1800&ignore=.csv" > ${ticker}.csv
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+if [[ ! -x .venv/bin/python ]]; then
+  echo 'Run bash compile.sh first' >&2
+  exit 1
+fi
+exec .venv/bin/python get_quotes.py "$@"

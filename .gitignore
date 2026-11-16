@@ -1,0 +1,8 @@
+season
+.venv/
+__pycache__/
+*.pyc
+data/
+reports/
+*.csv
+!samples/*.csv
