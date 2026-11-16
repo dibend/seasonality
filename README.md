@@ -1,103 +1,43 @@
-# seasonality
-Try to find some seasonality in stock prices from yahoo finance historical csv data.
+# Stock Seasonality — C-style C++17
 
-This program looks at each pair of days every year and determines which would've had the best performance in attempt to find seasonal patterns. 
+An exploratory stock-seasonality scanner. Searches earlier/later trading-day pairs
+within each calendar year and ranks their **average adjusted-price returns**
+across years. This is historical analysis, **not** a trading recommendation.
 
-compile with `./comp.sh`
+## Compile
 
-get a file for testing with `./get_quotes.sh IBM` or whichever ticker you choose
+```sh
+./comp.sh
+```
 
-run with `./season IBM.csv`
+## Prepare data
 
-/*--------------------------------------------------------------------*/
-GITHUB C0PIL0T >
+The program accepts normalized daily CSV data with an exact header and an ISO date:
 
-Yes — this program is a very simple stock-seasonality finder. I looked at the repo at https://github.com/dibend/seasonality.
+```csv
+Date,Close,Volume
+2020-01-02,100.0,1000
+2020-02-03,110.0,1200
+```
 
-In plain English, it does this:
+Use corporate-action-adjusted closing prices if comparing returns over time.
+The original `get_quotes.sh` is obsolete; use the yfinance converter from
+the companion local project until the Python downloader is integrated.
 
-- Reads a Yahoo Finance historical CSV file for a ticker like IBM
-- Parses each row into:
-  - year
-  - month
-  - day
-  - price
-- For each year, it looks at pairs of dates inside that same year
-- For every pair, it computes a return:
-  - return = (later_price - earlier_price) / earlier_price
-- It stores all those returns for each date-pair pattern, such as:
-  - 3/15 to 11/30
-  - 1/2 to 5/18
-- Then it averages those returns across many years
-- It picks:
-  - the best-performing pair as the “long” signal
-  - the worst-performing pair as the “short” signal
-- Prints results like:
-  - long,IBM,4/15,12/20,0.123456
-  - short,IBM,8/01,2/10,0.089012
+## Run
 
-What the C++ code is doing
+```sh
+./season IBM.csv 3
+```
 
-- season.h defines the data structures:
-  - Day contains date + volume + price
-  - Day_List holds an array of Day records
+The optional number is the minimum number of years observed for a calendar pair.
 
-- season.cpp does the CSV parsing:
-  - opens the file
-  - mmaps it into memory
-  - scans the CSV line by line
-  - extracts:
-    - year from the date field
-    - month and day from the date field
-    - closing price from the right column
-  - builds an array of Day records
+CSV output columns:
+`signal,ticker,buy_date,sell_date,avg_return_pct,years,win_rate_pct`.
 
-- main.cpp is the actual strategy:
-  - loops through all days in reverse order
-  - for each year, compares each day to earlier days in the same year
-  - creates a key like:
-    - "3/15,11/30"
-  - stores all returns for that pair
-  - computes the average return for each pair
-  - chooses the max and min average return
-  - prints them as long/short trade signals
+`worst_period` denotes the lowest mean **long** return. It is *not* a
+calculated short-sale profit. Transactions, dividend-accounting nuances, and
+execution costs are not modeled. Selecting extreme historical averages
+without out-of-sample validation causes substantial overfitting.
 
-The core idea is:
-- “Maybe some calendar dates consistently outperform others across years.”
-- It’s testing calendar seasonality, not a sophisticated predictive model.
-
-Example of the logic in main.cpp
-
-It builds a map keyed by pair:
-- month/day for the later date + month/day for the earlier date
-
-Then it does:
-- return = (price_earlier - price_later) / price_earlier
-- actually the code uses:
-  - (Days[j].price - Days[i].price) / Days[i].price
-- and stores this in a list for that pair
-- average return over all years for that pair
-
-Then it selects the largest and smallest average return.
-
-Important caveat
-
-This is a toy/experimental project, not a production-quality trading system. It is:
-- very simple
-- based on a raw CSV parser
-- uses a fixed column assumption
-- not robust to all file variations
-- not statistically validated
-
-How to run it
-
-From the repo:
-
-- compile:
-  - ./comp.sh
-- download sample quote data:
-  - ./get_quotes.sh IBM
-- run:
-  - ./season IBM.csv
-
-If you want, I can also explain the code line by line in a simpler “how each loop works” format, or show the exact logic used to compute the “best seasonal pair.”
+See [STYLE.md](STYLE.md) for code conventions. GPL-3.0 licensing retained.
